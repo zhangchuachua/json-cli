@@ -33,6 +33,7 @@ enum Commands {
     },
 
     /// 从 json-path 中提取数据并复制到目标文件中
+    // 例如使用 source $.meta.* target 希望把 source 的 meta 值覆盖到 target 中去；如果 target 没有 meta 那么就新建 meta；需要保证尽量保证 meta 在 target 中的位置与 source 一致；
     CpJsonPath {
         /// source file path
         source: String,
@@ -169,7 +170,6 @@ fn cp_json_path(
     base_path: &Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let base_path = base_path.clone().unwrap_or_else(|| "".to_string());
-
     let source_path = Path::new(&base_path).join(source);
 
     {
@@ -204,8 +204,6 @@ fn cp_json_path(
 
     for str in target_json_path {
         let target_path = Path::new(&base_path).join(str);
-        let target_content = fs::read_to_string(&target_path)?;
-        let target_json: Value = serde_json::from_str(&target_content)?;
         let target_path_str = path_to_normalized_str(&target_path).unwrap();
 
         {
@@ -238,6 +236,9 @@ fn cp_json_path(
                 .exit();
             }
         }
+
+        let target_content = fs::read_to_string(&target_path)?;
+        let target_json: Value = serde_json::from_str(&target_content)?;
 
         let ret: Value = replace_with(json_path, target_json, &mut |json_pointer, _| {
             if let Some(v) = source_json.pointer(json_pointer) {
@@ -373,5 +374,99 @@ fn replace_with<F: FnMut(&str, Value) -> Option<Value>>(
     Ok(value)
 }
 
-#[test]
-fn test() {}
+// TODO 完善 option 功能，比如覆写
+fn copy_file(from: &str, to: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let to_parent = Path::new(to).parent().unwrap();
+    if !to_parent.exists() {
+        create_all(to_parent, false)?;
+    }
+
+    let options = CopyOptions::new();
+    copy(from, to, &options)?;
+
+    Ok(())
+}
+
+const IGNORE_FILE: [&str; 1] = [".DS_Store"];
+
+fn get_matched_file_paths(from: &str) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    let re_path = normalize_path(&Path::new(from));
+    let mut matched_paths = vec![PathBuf::new()];
+
+    for cpt in re_path.components() {
+        let mut tmp_paths = vec![];
+        if matched_paths.is_empty() {
+            panic!(
+                "`{}`
+                 路径错误; 可能是路径中有不存在的文件夹导致!",
+                re_path.display()
+            );
+        }
+        for path in matched_paths {
+            let new_path = path.join(cpt);
+            // 如果 path 是存在的，就不去处理它
+            if new_path.exists() {
+                tmp_paths.push(new_path);
+                continue;
+            }
+            // 如果 path 不存在，那么认为这个 cpt 是一个正则表达式；
+            let cpt_to_str = cpt.as_os_str().to_str().unwrap();
+            // 使用这个 path 构建正则表达式;
+            let rex = Regex::new(cpt_to_str).unwrap();
+
+            if path.is_file() {
+                panic!(
+                    "`{}` 路径错误; 可能是路径中间有文件导致!",
+                    re_path.display()
+                );
+            }
+
+            // 这里的 path 相当于 new_path 的 parent 如果 new_path 不存在，那么就去读取其 parent
+            // 如果 path 是一个目录的话，读取这个目录，并寻找匹配正则表达式的 file_name 并添加到 path_vec 中
+            path.read_dir()?
+                .filter_map(|item| {
+                    item.ok().and_then(|dir_entry| {
+                        dir_entry
+                            .file_name()
+                            .into_string()
+                            .ok()
+                            .and_then(|file_name| {
+                                // 过滤隐藏文件
+                                if IGNORE_FILE.contains(&file_name.as_str()) {
+                                    None
+                                    // 过滤不匹配的文件
+                                } else if rex.is_match(&file_name) {
+                                    Some(file_name)
+                                } else {
+                                    None
+                                }
+                            })
+                    })
+                })
+                .for_each(|file_name| {
+                    tmp_paths.push(path.join(file_name));
+                })
+        }
+        matched_paths = tmp_paths;
+    }
+
+    Ok(matched_paths
+        .iter()
+        .map(|item| item.to_str().unwrap().to_string())
+        .collect::<Vec<String>>())
+}
+
+fn get_target_paths_from_regexp(
+    matched_paths: &Vec<String>,
+    from: &str,
+    to: &str,
+) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    let re_path = normalize_path(&Path::new(from));
+    let rex = Regex::new(re_path.to_str().unwrap()).unwrap();
+    let mut target_paths = vec![];
+    for path in matched_paths {
+        target_paths.push(rex.replace_all(&path, to).to_string());
+    }
+
+    Ok(target_paths)
+}

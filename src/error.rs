@@ -11,8 +11,8 @@ pub enum CliError {
     InvalidArrPath(String),
     #[error("错误的索引 `{0}`!")]
     InvalidIndex(String),
-    #[error("文件复制发生错误 `{0}`")]
+    #[error("文件复制发生错误")]
     CopyFileError(#[from] fs_extra::error::Error),
-    #[error("文件夹读取错误 `{0}`")]
+    #[error("文件夹读取错误")]
     ReadDirError(#[from] io::Error),
 }

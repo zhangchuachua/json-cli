@@ -1,8 +1,11 @@
 [package]
-name = "jh"
+name = "my-helper"
 version = "0.1.0"
-description = "A simple JSON cli helper"
+description = "batch file operation helper"
 edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
 
 [dependencies]
 serde_json_path = "0.7.1"
@@ -13,5 +16,5 @@ env_logger = "0.11.6"
 regex = "1.11.1"
 fs_extra = "1.3.0"
 thiserror = "2.0.9"
-inquire = "0.7.5"
 fuzzy-matcher = "0.3.7"
+wasm-bindgen = "0.2.100"

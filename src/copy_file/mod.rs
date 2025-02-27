@@ -1,8 +1,3 @@
-// pub mod copy_file;
-pub mod error;
-// pub mod file_path_completer;
-pub mod util;
-
 use crate::util::{format_to_path_by_regexp, get_matched_file_paths};
 use fs_extra::dir::create_all;
 use fs_extra::file::{copy, CopyOptions};
@@ -37,8 +32,8 @@ pub fn copy_file(from: String, to: String, options: String) {
     let matched_paths = get_matched_file_paths(&from_path, typed_options.ignore_dirs).unwrap();
 
     for path in matched_paths {
-        let to = format_to_path_by_regexp(&from_string, &to_string, path.as_str());
-        let mut to = PathBuf::from(to);
+        let to = format_to_path_by_regexp(&from_string, &to_string, &path);
+        let mut to = PathBuf::from(&to);
 
         if to.extension().is_none() {
             // 如果没有 extension 那么认为当前的 to 是文件夹，那么就使用 path 的文件名;

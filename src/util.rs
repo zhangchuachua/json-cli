@@ -1,5 +1,4 @@
-use crate::error::CliError;
-use crate::error::CliError::{InvalidArrPath, InvalidIndex};
+use crate::error::AppError;
 use log::warn;
 use regex::Regex;
 use serde_json::map::Entry;
@@ -11,11 +10,11 @@ use std::path::{Component, Path, PathBuf};
 /// 从 from 中获取匹配到的路径，例如 "/Users/xxx/Desktop/(?<name>.*)\.png" 表示匹配桌面下的所有 png
 pub fn get_matched_file_paths(
     from: &Path,
-    ignore_dirs: Option<Vec<String>>,
-) -> Result<Vec<String>, CliError> {
+    ignore_dirs: &Option<Vec<String>>,
+) -> Result<Vec<String>, AppError> {
     let real_ignore = match ignore_dirs {
         Some(value) => value,
-        None => vec![
+        None => &vec![
             ".DS_Store".to_string(),
             ".git".to_string(),
             ".idea".to_string(),
@@ -56,7 +55,8 @@ pub fn get_matched_file_paths(
 
             // 这里的 path 相当于 new_path 的 parent 如果 new_path 不存在，那么就去读取其 parent
             // 如果 path 是一个目录的话，读取这个目录，并寻找匹配正则表达式的 file_name 并添加到 path_vec 中
-            path.read_dir()?
+            path.read_dir()
+                .map_err(|e| AppError::DirectoryError(format!("读取目录失败: {}", e)))?
                 .filter_map(|item| {
                     item.ok().and_then(|dir_entry| {
                         dir_entry
@@ -103,10 +103,10 @@ pub fn replace_with<F: FnMut(&str, Value) -> Option<Value>>(
     replace_path: &str,
     mut value: Value,
     func: &mut F,
-) -> Result<Value, CliError> {
+) -> Result<Value, AppError> {
     // replace_path = "$.meta.*";
     let json_path = JsonPath::parse(replace_path)
-        .map_err(|_| CliError::JsonPathParseError(replace_path.to_string()))?;
+        .map_err(|_| AppError::JsonPathParse(replace_path.to_string()))?;
 
     // pointers = ["/meta/title", "/meta/desc", "/meta/keywords"];
     let pointers = json_path
@@ -152,7 +152,7 @@ pub fn replace_with<F: FnMut(&str, Value) -> Option<Value>>(
                         Some(tmp)
                     } else {
                         // TODO 对象不存在时是否新建一个对象
-                        return Err(CliError::InvalidObjPath(pointer.to_string()));
+                        return Err(AppError::InvalidObjectPath(pointer.to_string()));
                     }
                 }
                 Value::Array(ref mut arr) => {
@@ -170,10 +170,10 @@ pub fn replace_with<F: FnMut(&str, Value) -> Option<Value>>(
                             Some(tmp)
                         } else {
                             // TODO 对象不存在时是否新建一个对象
-                            return Err(InvalidArrPath(pointer.to_string()));
+                            return Err(AppError::InvalidArrayPath(pointer.to_string()));
                         }
                     } else {
-                        return Err(InvalidIndex(key.to_string()));
+                        return Err(AppError::InvalidIndex(key.to_string()));
                     }
                 }
                 _ => None,
@@ -210,4 +210,14 @@ pub fn normalize_path(path: &Path) -> PathBuf {
 
 pub fn path_to_normalized_str(path: &Path) -> Option<String> {
     normalize_path(path).to_str().map(|s| s.to_string())
+}
+
+pub trait Normalize {
+    fn normalize(&self) -> Self;
+}
+
+impl Normalize for PathBuf {
+    fn normalize(&self) -> Self {
+        normalize_path(&self)
+    }
 }

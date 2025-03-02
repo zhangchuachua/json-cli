@@ -1,11 +1,22 @@
 use clap::Parser;
+use env_logger::{Builder, Env, Target};
 use my_helper::cli::{Cli, CommandRunner, Commands};
 use my_helper::error::AppError;
 
 fn main() -> Result<(), AppError> {
     // 初始化日志
-    std::env::set_var("RUST_LOG", "trace");
-    env_logger::init();
+    let env = Env::default().filter_or("RUST_LOG", "trace");
+    let mut builder = Builder::from_env(env);
+
+    builder
+        .filter(Some("error"), log::LevelFilter::Error)
+        .target(Target::Stderr);
+
+    builder
+        .filter(None, log::LevelFilter::Info)
+        .target(Target::Stdout);
+
+    builder.init();
 
     let cli = Cli::parse();
     let runner = CommandRunner::new();

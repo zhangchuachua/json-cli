@@ -194,7 +194,6 @@ pub fn replace_with<F: FnMut(&str, Value) -> Option<Value>>(
 pub fn normalize_path(path: &Path) -> PathBuf {
     let mut tmp = PathBuf::new();
     for component in path.components() {
-        println!("{}", component.as_os_str().to_str().unwrap());
         match component {
             Component::ParentDir => {
                 tmp.pop();

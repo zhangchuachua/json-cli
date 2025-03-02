@@ -1,6 +1,9 @@
 [package]
 name = "my-helper"
 version = "0.1.0"
+authors = ["zhangchuachua <zchuachuax@gmail.com>"]
+description = "我的批量文件操作 cli 工具"
+license = "MIT"
 edition = "2021"
 
 [dependencies]
